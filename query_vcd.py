@@ -165,13 +165,29 @@ def remove_host_definitions(definitions, target):
     return timescale_def + target_defs, target_defs_split, main_clock_id
 
 
+def basic_assertion_analysis(assertion_data):
+    first_assert = None
+    last_assert = None
+    num_assertions = 0
+
+    for e in assertion_data.items():
+        if e[1]:
+            if first_assert is None:
+                first_assert = e[0]
+            last_assert = e[0]
+            num_assertions += 1
+
+    return first_assert, last_assert, num_assertions
+
+
 def main():
     # use a library for arg parsing (arg parse) instead of basic python library
     # a lot easier to use
     parser = argparse.ArgumentParser(description="Provide input filename, followed by operation, followed by")
     parser.add_argument('input_filename', help='Provides input filename of decoupled waveform from firesim execution')
-    parser.add_argument('var_names', nargs='+', action='extend', help='Provides names of variables to be queried from VCD')
-    parser.add_argument('-th', '--target_hardware', default=None, help='Specify target hardware')
+    parser.add_argument('var_names', nargs='+', action='extend',
+                        help='Provides names of variables to be queried from VCD')
+    parser.add_argument('-tm', '--target_module', default=None, help='Specify target module in firesim hierarchy')
     parser.add_argument('-o', '--operator', default='and', help="Provides operator to be mapped across the variables "
                                                                 "provided by var_names. Currently must be an "
                                                                 "infix operator from the following supported list.\n"
@@ -197,7 +213,7 @@ def main():
     time_range = None
     if args.time_range:
         time_range = [int(s) for s in args.time_range]
-    print(time_range)
+
     input_wave_file = open(input_filename, "r")
     if args.lambda_operator is None:
         operator = parse_operator(args.operator)
@@ -207,8 +223,8 @@ def main():
     assert operator is not None, "Invalid operator, run 'python query_vcd.py -h' for more info"
 
     definitions = in_file_split(input_wave_file, "$enddefinitions")
-    if args.target_hardware is not None:
-        _, definitions, _ = remove_host_definitions(definitions, args.target_hardware)
+    if args.target_module is not None:
+        _, definitions, _ = remove_host_definitions(definitions, args.target_module)
         definitions = "$end".join(definitions)
 
     id_dict = extract_relevant_ids(definitions, args.var_names)
@@ -216,9 +232,17 @@ def main():
     while "$dumpvars" not in line:
         line = input_wave_file.readline()
 
-    print(operate_on_value_dump(id_dict, input_wave_file, operator, time_range))
-    input_wave_file.close()
+    if time_range:
+        assertion_data = basic_assertion_analysis(operate_on_value_dump(id_dict, input_wave_file, operator, time_range))
+    else:
+        assertion_data = basic_assertion_analysis(operate_on_value_dump(id_dict, input_wave_file, operator, time_range))
 
+    print("Following data shows time of first/last assertion, not cycles!")
+    print("Earliest Assertion:   {}".format(assertion_data[0]))
+    print("Latest Assertion:     {}".format(assertion_data[1]))
+    print("Number of Assertions: {}".format(assertion_data[2]))
+
+    input_wave_file.close()
 
 if __name__ == "__main__":
     main()
