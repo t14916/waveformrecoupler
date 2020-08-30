@@ -1,18 +1,34 @@
+from time import sleep
+import subprocess
+import sys
+
 operations_dict = {'and': ' & ',
                    'or': ' | ',
                    'xor': ' ^ '}
 
 
-def in_file_split(input_file, delimiter):
-    line = input_file.readline()
+#query
+#recouple
+def in_file_split(input_file, delimiter, online=False, p=None):
+
     split_list = []
+    if online:
+        if p.poll(1):
+            line = input_file.stdout.readline().decode(sys.stdout.encoding)
+    else:
+        line = input_file.readline()
+
     while delimiter not in line:
         split_list.append(line)
-        line = input_file.readline()
+        if online:
+            line = input_file.stdout.readline().decode(sys.stdout.encoding)
+        else:
+            line = input_file.readline()
 
     return "".join(split_list)
 
 
+#query
 def parse_operator(op_string):
     if op_string in operations_dict.keys():
         operator = operations_dict[op_string]
@@ -28,6 +44,7 @@ def parse_operator(op_string):
         return None
 
 
+#query
 def extract_hierarchy_information(vars):
     scoped_vars = []
     for var in vars:
@@ -43,6 +60,7 @@ def extract_hierarchy_information(vars):
     return vars_dict#, var_list
 
 
+#helper
 def check_scopes(scope_list, var_scope):
     exact_scoping = True
     if len(var_scope) == 0:
@@ -60,6 +78,7 @@ def check_scopes(scope_list, var_scope):
     return True
 
 
+#query
 def extract_relevant_ids(definitions, vars):
     """
     :param definitions: String representing the variable descripotions in .vcd
@@ -104,6 +123,7 @@ def extract_relevant_ids(definitions, vars):
     return id_dict
 
 
+#query
 def all_same_id(id_dict):
     ids = [a[1] for a in id_dict.items()]
     for i in range(len(ids)):
@@ -113,6 +133,7 @@ def all_same_id(id_dict):
     return True
 
 
+#query
 def operate_on_value_dump(id_dict, input_file, operator, time_range=None):
     id_list = [item[1] for item in id_dict.items()]
     value_dict = dict()
@@ -151,6 +172,7 @@ def operate_on_value_dump(id_dict, input_file, operator, time_range=None):
     return accumulated_value_dict
 
 
+#helper
 def accumulate_values(value_dict, operator):
     acc_value = None
     value_list = [item[1] for item in value_dict.items()]
@@ -177,6 +199,7 @@ def accumulate_values(value_dict, operator):
     return acc_value
 
 
+#query
 def basic_assertion_analysis(assertion_data):
     first_assert = None
     last_assert = None
@@ -192,6 +215,7 @@ def basic_assertion_analysis(assertion_data):
     return first_assert, last_assert, num_assertions
 
 
+#recouple
 def remove_host_definitions(definitions, target='target'):
     """
     :param definitions: String representing the first part of .vcd file describing waveform definitions
@@ -235,18 +259,28 @@ def remove_host_definitions(definitions, target='target'):
     return timescale_def + target_defs, target_defs_split, main_clock_id
 
 
-def trim_and_write_value_dump(id_set, input_file, output_file, real_timing_id, target_clock_ids):
+#recouple
+def trim_and_write_value_dump(id_set, input_file, output_file, real_timing_id, target_clock_ids, online = False, p = None):
     current_time_values = []
     recoupled_time = 0
     original_time = 0
 
-    line = input_file.readline()
+    if online:
+        if p.poll(1):
+            line = input_file.stdout.readline().decode(sys.stdout.encoding)
+    else:
+        line = input_file.readline()
     while line:
         if line:
             if line[0] == "#":
                 original_time = line[1:]
             elif line[0] == "b":
-                _, var_id = line.split()
+                #_, var_id = line.split()
+                var_id = line.split()[-1]
+                if len(line.split()) == 1:
+                    print('Error: non-blocking online read failed at time {} in recoupled vcd'.format(recoupled_time))
+                    #print(original_time)
+                    print(line.split())
                 if var_id in id_set:
                     current_time_values.append(line)
             else:
@@ -260,11 +294,16 @@ def trim_and_write_value_dump(id_set, input_file, output_file, real_timing_id, t
                         current_time_values = []
                 if var_id in id_set:
                     current_time_values.append(line)
+        if online:
+            if p.poll(1):
+                line = input_file.stdout.readline().decode(sys.stdout.encoding)
+        else:
             line = input_file.readline()
 
     return 0
 
 
+#helper
 def convert_to_binary_string(num, bitsize):
     """
     :param num:
@@ -280,3 +319,14 @@ def convert_to_binary_string(num, bitsize):
         num = num / 2
 
     return "b{}".format("".join(binary_num_array))
+
+
+# TEST FUNCTIONS
+
+
+def copy_file(input_file, output_file):
+    line = input_file.readline()
+    while line:
+        output_file.write(line)
+        #sleep(0.001)
+        line = input_file.readline()

@@ -1,17 +1,23 @@
 import argparse
 from vcd_utils import *
 import timeit
+import subprocess
+import select
 
 
 def main():
     recouple_parser = argparse.ArgumentParser(description="Provide file names of input to recouple at output"
-                                                 " in format 'input output'")
+                                                          " in format 'input output'")
 
     recouple_parser.set_defaults(mode="recouple")
     recouple_parser.add_argument('input_filename', help='Provides input filename of decoupled '
                                                         'waveform from firesim execution')
     recouple_parser.add_argument('output_filename', default='recoupled.vcd', help='Provides output filename to be '
                                                                                   'created at the end of execution')
+    recouple_parser.add_argument('-o', '--online', action='store_true', help='Assert if recoupling online'
+                                                                             'NOTE: online tends to randomly, nondeterminstically drop ')
+    recouple_parser.add_argument('-tm', '--timeout', default='10', help='Only for online recoupling use, determines'
+                                                                        'timeout of tail call')
 
     args = recouple_parser.parse_args()
     if args.input_filename[-4:] != ".vcd":
@@ -23,11 +29,21 @@ def main():
     else:
         output_filename = args.output_filename
 
-    input_wave_file = open(input_filename, "r")
+    if args.online:
+        input_wave_file = subprocess.Popen(['timeout', '{}s'.format(args.timeout), 'tail', '-F', '-n', '+1',
+                                            input_filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = select.poll()
+        p.register(input_wave_file.stdout)
+    else:
+        input_wave_file = open(input_filename, "r")
+
     output_wave_file = open(output_filename, "w")
     initial_time = timeit.default_timer()
 
-    definitions = in_file_split(input_wave_file, "$enddefinitions")
+    if args.online:
+        definitions = in_file_split(input_wave_file, "$enddefinitions", args.online, p)
+    else:
+        definitions = in_file_split(input_wave_file, "$enddefinitions")
     sim_header_string, sim_definitions_list, clock_id = remove_host_definitions(definitions)
     sim_header_string = sim_header_string + "$enddefinitions\n$end\n$dumpvars\n"
 
@@ -62,23 +78,35 @@ def main():
     sim_header_string = "\n".join(adjusted_header_string_list)
     output_wave_file.write(sim_header_string)
 
-    line = input_wave_file.readline()
-    while "$dumpvars" not in line:
+    if args.online:
+        line = input_wave_file.stdout.readline().decode(sys.stdout.encoding)
+    else:
         line = input_wave_file.readline()
+    while "$dumpvars" not in line:
+        if args.online:
+            line = input_wave_file.stdout.readline().decode(sys.stdout.encoding)
+        else:
+            line = input_wave_file.readline()
 
     initial_time_vd = timeit.default_timer()
 
-    trim_and_write_value_dump(id_set, input_wave_file, output_wave_file, clock_id, target_clock_ids)
+    if args.online:
+        trim_and_write_value_dump(id_set, input_wave_file, output_wave_file, clock_id, target_clock_ids, args.online, p)
+    else:
+        trim_and_write_value_dump(id_set, input_wave_file, output_wave_file, clock_id, target_clock_ids)
 
     time_elapsed, time_elapsed_vd = timeit.default_timer() - initial_time, timeit.default_timer() - initial_time_vd
-    input_wave_file.seek(0, 2)
-    throughput = (input_wave_file.tell() / 10 ** 6) / time_elapsed
     print("Time Elapsed: ", time_elapsed, " seconds")
-    print(time_elapsed_vd)
-    print("Throughput: ", throughput, "MB/s")
-    print("Time for 1 GB file", 1000 / throughput)
+    if not args.online:
+        input_wave_file.seek(0, 2)
+        throughput = (input_wave_file.tell() / 10 ** 6) / time_elapsed
+        #print(time_elapsed_vd)
+        print("Throughput: ", throughput, "MB/s")
+        print("Time for 1 GB file", 1000 / throughput)
+        input_wave_file.close()
+    else:
+        input_wave_file.terminate()
 
-    input_wave_file.close()
     output_wave_file.close()
 
 
