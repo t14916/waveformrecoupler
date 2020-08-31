@@ -55,12 +55,14 @@ def main():
     # if args.target_module is not None:
     #    _, definitions, _ = remove_host_definitions(definitions, args.target_module)
     #    definitions = "$end".join(definitions)
-    _, definitions = definitions.split('$scope module FPGATop $end')
-    definitions = '$scope module FPGATop $end\n' + definitions
+    #_, definitions = definitions.split('$scope module FPGATop $end')
+
+    _, definitions = definitions.split('$scope module emul $end')
+    definitions = '$scope module emul $end\n' + definitions
     id_dict = extract_relevant_ids(definitions, args.var_names)
     if id_dict is None:
-        print(vars)
-        print(id_dict.keys())
+        print(args.var_names)
+        #print(id_dict.keys())
         print("Could not find all variables. Make sure that the hierarchy information is correct.")
         return
     if all_same_id(id_dict):
@@ -73,9 +75,10 @@ def main():
     assertion_dict = operate_on_value_dump(id_dict, input_wave_file, operator, time_range)
     assertion_data = basic_assertion_analysis(assertion_dict)
 
-    print(assertion_dict)
+    #print(assertion_dict)
     print(id_dict)
     print("Following data shows time of first/last assertion, not cycles!")
+    print("Positive clock edge aligned.")
     print("Earliest Assertion:   {}".format(assertion_data[0]))
     print("Latest Assertion:     {}".format(assertion_data[1]))
     print("Number of Assertions: {}".format(assertion_data[2]))

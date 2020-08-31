@@ -55,22 +55,26 @@ def extract_hierarchy_information(vars):
         if len(sv) > 1:
             vars_dict.append((sv[-1], sv[:-1]))
         else:
-            vars_dict.append(([sv[0]], ()))
+            vars_dict.append((sv[0], ()))
 
     return vars_dict#, var_list
 
 
 #helper
 def check_scopes(scope_list, var_scope):
-    exact_scoping = True
+    exact_scoping = False
+    #print(var_scope)
     if len(var_scope) == 0:
-        exact_scoping = False
-        var_scope = ['target']
+        exact_scoping = True
+        var_scope = ['emul']
 
     index = 0
+    #print(scope_list)
+    #print(exact_scoping)
+    #print(var_scope)
     for s in scope_list:
-        if index > len(var_scope):
-            return exact_scoping
+        if index >= len(var_scope):
+            return not exact_scoping
         if s == var_scope[index]:
             index += 1
         elif index > 0:
@@ -91,9 +95,11 @@ def extract_relevant_ids(definitions, vars):
     vars_dict_keys = [e[0] for e in vars_dict]
     vars_dict_items = [e[1] for e in vars_dict]
     split_def = definitions.split("$end")
-    scope_list = ['emul']
+    #print(split_def[0])
+    scope_list = []#['emul']
     id_dict = dict()
     for i in range(len(split_def)):
+        #print(vars_dict_keys)
         s = split_def[i]
         parsed_def = [st for st in s.split() if st]
         if '$upscope' in s:
@@ -113,11 +119,12 @@ def extract_relevant_ids(definitions, vars):
                     if var == vars_dict_keys[i]:
                         indices.append(i)
                 for index in indices:
+                    #print(check_scopes(scope_list, vars_dict_items[index]))
                     if check_scopes(scope_list, vars_dict_items[index]):
                         var = ".".join(scope_list[:] + [var])
                         if var not in id_dict.keys():
                             id_dict[var] = parsed_def[3]
-
+    #print(id_dict)
     if len(vars) != len(id_dict.keys()):
         return None
     return id_dict
@@ -230,7 +237,8 @@ def remove_host_definitions(definitions, target='target'):
             timescale_def = s + "$end\n"
             break
 
-    _, definitions = definitions.split("$scope module FPGATop $end")
+    #_, definitions = definitions.split("$scope module FPGATop $end")
+    _, definitions = definitions.split("$scope module emul $end")
     main_clock_id = definitions.split("$end")[0].split()[-2] #NOTE: requires the line directly after FPGATop to be the
                                                              #the host clock. This needs to be changed when firesim
                                                              #updates
