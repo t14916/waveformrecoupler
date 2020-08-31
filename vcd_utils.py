@@ -13,8 +13,10 @@ def in_file_split(input_file, delimiter, online=False, p=None):
 
     split_list = []
     if online:
-        if p.poll(1):
-            line = input_file.stdout.readline().decode(sys.stdout.encoding)
+        #if p.poll(1):
+        #    line = input_file.stdout.readline().decode(sys.stdout.encoding)
+        line = input_file.stdout.readline().decode(sys.stdout.encoding)
+
     else:
         line = input_file.readline()
 
@@ -283,8 +285,10 @@ def trim_and_write_value_dump(id_set, input_file, output_file, real_timing_id, t
     original_time = 0
 
     if online:
-        if p.poll(1):
-            line = input_file.stdout.readline().decode(sys.stdout.encoding)
+        #if p.poll(1):
+        #    line = input_file.stdout.readline().decode(sys.stdout.encoding)
+        line = input_file.stdout.readline().decode(sys.stdout.encoding)
+
     else:
         line = input_file.readline()
     while line:
@@ -312,8 +316,10 @@ def trim_and_write_value_dump(id_set, input_file, output_file, real_timing_id, t
                 if var_id in id_set:
                     current_time_values.append(line)
         if online:
-            if p.poll(1):
-                line = input_file.stdout.readline().decode(sys.stdout.encoding)
+            #if p.poll(1):
+            #    line = input_file.stdout.readline().decode(sys.stdout.encoding)
+            line = input_file.stdout.readline().decode(sys.stdout.encoding)
+
         else:
             line = input_file.readline()
 
