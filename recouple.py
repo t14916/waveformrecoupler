@@ -18,7 +18,8 @@ def main():
                                                                              'NOTE: online tends to randomly, nondeterminstically drop ')
     recouple_parser.add_argument('-tm', '--timeout', default='10', help='Only for online recoupling use, determines'
                                                                         'timeout of tail call')
-
+    recouple_parser.add_argument('-s', '--synopsis', action='store_true', help='Use this flag if using VCD instead of '
+                                                                               'verilator')
     args = recouple_parser.parse_args()
     if args.input_filename[-4:] != ".vcd":
         input_filename = args.input_filename + ".vcd"
@@ -44,7 +45,7 @@ def main():
         definitions = in_file_split(input_wave_file, "$enddefinitions", args.online, p)
     else:
         definitions = in_file_split(input_wave_file, "$enddefinitions")
-    sim_header_string, sim_definitions_list, clock_id = remove_host_definitions(definitions)
+    sim_header_string, sim_definitions_list, clock_id = remove_host_definitions(definitions, vcs=args.synopsis)
     sim_header_string = sim_header_string + "$enddefinitions\n$end\n$dumpvars\n"
 
     invalid_defs = []
@@ -73,8 +74,9 @@ def main():
 
     adjusted_header_string_list = sim_header_string.splitlines()
     for inv in invalid_defs:
-        def_start = inv.find("$var")
-        adjusted_header_string_list.remove(inv[def_start:] + "$end")
+        #def_start = inv.find("$var")
+        #adjusted_header_string_list.remove(inv[def_start:] + "$end")
+        adjusted_header_string_list.remove(remove_newline(inv) + "$end")
     sim_header_string = "\n".join(adjusted_header_string_list)
     output_wave_file.write(sim_header_string)
 
@@ -82,11 +84,13 @@ def main():
         line = input_wave_file.stdout.readline().decode(sys.stdout.encoding)
     else:
         line = input_wave_file.readline()
-    while "$dumpvars" not in line:
-        if args.online:
-            line = input_wave_file.stdout.readline().decode(sys.stdout.encoding)
-        else:
-            line = input_wave_file.readline()
+
+    if args.synopsis:
+        while "$dumpvars" not in line:
+            if args.online:
+                line = input_wave_file.stdout.readline().decode(sys.stdout.encoding)
+            else:
+                line = input_wave_file.readline()
 
     initial_time_vd = timeit.default_timer()
 

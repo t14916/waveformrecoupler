@@ -61,12 +61,15 @@ def extract_hierarchy_information(vars):
 
 
 #helper
-def check_scopes(scope_list, var_scope):
+def check_scopes(scope_list, var_scope, vcs=False):
     exact_scoping = False
     #print(var_scope)
     if len(var_scope) == 0:
         exact_scoping = True
-        var_scope = ['emul']
+        if vcs:
+            var_scope = ['emul']
+        else:
+            var_scope = ['TOP']
 
     index = 0
     #print(scope_list)
@@ -83,7 +86,7 @@ def check_scopes(scope_list, var_scope):
 
 
 #query
-def extract_relevant_ids(definitions, vars):
+def extract_relevant_ids(definitions, vars, vcs=False):
     """
     :param definitions: String representing the variable descripotions in .vcd
     :param var_names: list of variables to extract in formation scope.subscope.var_name (can give more scope info)
@@ -120,7 +123,7 @@ def extract_relevant_ids(definitions, vars):
                         indices.append(i)
                 for index in indices:
                     #print(check_scopes(scope_list, vars_dict_items[index]))
-                    if check_scopes(scope_list, vars_dict_items[index]):
+                    if check_scopes(scope_list, vars_dict_items[index], vcs):
                         var = ".".join(scope_list[:] + [var])
                         if var not in id_dict.keys():
                             id_dict[var] = parsed_def[3]
@@ -149,8 +152,11 @@ def operate_on_value_dump(id_dict, input_file, operator, time_range=None):
     prev_time = '0'
     time_lock = False
     while line:
+        #print(repr(line))
         line = line[:-1] # gets rid of newline character
-        if line[0] == "#":
+        if not line:
+            pass
+        elif line[0] == "#":
             time = line[1:]
             if time_range:
                 if time_range[0] <= int(prev_time) <= time_range[1]:
@@ -223,7 +229,7 @@ def basic_assertion_analysis(assertion_data):
 
 
 #recouple
-def remove_host_definitions(definitions, target='target'):
+def remove_host_definitions(definitions, target='target', vcs=False):
     """
     :param definitions: String representing the first part of .vcd file describing waveform definitions
     :return: String representation of definitions only with only target and sim clock
@@ -233,12 +239,15 @@ def remove_host_definitions(definitions, target='target'):
     split_def = definitions.split("$end")
     timescale_def = None
     for s in split_def:
-        if s[:10] == "$timescale":
+        if "$timescale" in s:
             timescale_def = s + "$end\n"
             break
 
     #_, definitions = definitions.split("$scope module FPGATop $end")
-    _, definitions = definitions.split("$scope module emul $end")
+    if vcs:
+        _, definitions = definitions.split("$scope module emul $end")
+    else:
+        _, definitions = definitions.split("$scope module verilator_top $end")
     main_clock_id = definitions.split("$end")[0].split()[-2] #NOTE: requires the line directly after FPGATop to be the
                                                              #the host clock. This needs to be changed when firesim
                                                              #updates
@@ -263,7 +272,7 @@ def remove_host_definitions(definitions, target='target'):
 
     time_variable_definition = "$var wire      64 {}  time $end\n".format(main_clock_id)
     target_defs = "$scope module {} $end\n".format(target) + time_variable_definition + "$end".join(target_defs_split[:index]) + "$end\n"
-
+    #print(print(target_defs))
     return timescale_def + target_defs, target_defs_split, main_clock_id
 
 
@@ -327,6 +336,11 @@ def convert_to_binary_string(num, bitsize):
         num = num / 2
 
     return "b{}".format("".join(binary_num_array))
+
+
+#recouple
+def remove_newline(string):
+    return string.splitlines()[-1]
 
 
 # TEST FUNCTIONS

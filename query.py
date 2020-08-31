@@ -30,6 +30,8 @@ def main():
     query_parser.add_argument('-t', '--time_range', nargs=2, default=None,
                               help='Provides time range operated on, inclusive'
                                    'of both bounds')
+    query_parser.add_argument('-s', '--synopsis', action='store_true', help='Use this flag if using VCD instead of '
+                                                                               'verilator')
 
     args = query_parser.parse_args()
     input_filename = args.input_filename
@@ -55,11 +57,14 @@ def main():
     # if args.target_module is not None:
     #    _, definitions, _ = remove_host_definitions(definitions, args.target_module)
     #    definitions = "$end".join(definitions)
-    #_, definitions = definitions.split('$scope module FPGATop $end')
+    if args.synopsis:
+        _, definitions = definitions.split('$scope module emul $end')
+        definitions = '$scope module emul $end\n' + definitions
+    else:
+        _, definitions = definitions.split('$scope module TOP $end')
+        definitions = '$scope module TOP $end\n' + definitions
 
-    _, definitions = definitions.split('$scope module emul $end')
-    definitions = '$scope module emul $end\n' + definitions
-    id_dict = extract_relevant_ids(definitions, args.var_names)
+    id_dict = extract_relevant_ids(definitions, args.var_names, args.synopsis)
     if id_dict is None:
         print(args.var_names)
         #print(id_dict.keys())
@@ -68,9 +73,11 @@ def main():
     if all_same_id(id_dict):
         print("All provided variables have the same id!!")
         return
-    line = input_wave_file.readline()
-    while "$dumpvars" not in line:
+
+    if args.synopsis:
         line = input_wave_file.readline()
+        while "$dumpvars" not in line:
+            line = input_wave_file.readline()
 
     assertion_dict = operate_on_value_dump(id_dict, input_wave_file, operator, time_range)
     assertion_data = basic_assertion_analysis(assertion_dict)
